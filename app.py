@@ -1,99 +1,91 @@
-from flask import Flask, jsonify, request, url_for, redirect, session, render_template, g
+from flask import Flask, render_template, g, request
 import sqlite3
-import requests
-
+from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = '&Oc?P7zBQZ1H}7y{k!a?7oD>q)qHa'
-
 
 def connect_db():
-    sql = sqlite3.connect('data.db')
+    sql = sqlite3.connect('/mnt/c/Users/antho/Documents/food_log.db')
     sql.row_factory = sqlite3.Row
     return sql
 
-
 def get_db():
-    if not hasattr(g, 'sqlite3'):
+    if not hasattr(g, 'sqlite_db'):
         g.sqlite_db = connect_db()
     return g.sqlite_db
 
-
 @app.teardown_appcontext
 def close_db(error):
-    if hasattr(g, 'sqlite.db'):
+    if hasattr(g, 'sqlite_db'):
         g.sqlite_db.close()
 
-
-@app.route('/')
-def hello_world():
-    return '<h1>Hello World!</h1>'
-
-
-@app.route('/home', methods=['POST', 'GET'], defaults={'name': 'Przybyszu'})
-@app.route('/home/<string:name>', methods=['POST', 'GET'])
-def home(name):
-    session['name'] = name
+@app.route('/', methods=['POST', 'GET'])
+def index():
     db = get_db()
-    cur = db.execute('select id, name, location from users')
-    results = cur.fetchall()
 
-    return render_template('home.html', name=name, display=True, mylist = [1,2,3,4,5], listdict = [{'name': 'Kuba'}, \
-                            {'name': 'Mati'}], results=results)
+    if request.method == 'POST':
+        date = request.form['date'] #assuming the date is in YYYY-MM-DD format
 
+        dt = datetime.strptime(date, '%Y-%m-%d')
+        database_date = datetime.strftime(dt, '%Y%m%d')
 
-@app.route('/json')
-def json():
-    if 'name' in session:
-        name = session['name']
-    else:
-        name = 'zdupy'
-    return jsonify({'key': 'value', 'listkey': [1,2,3,], 'name': name})
-
-
-@app.route('/query')
-def query():
-    name = request.args.get('name')
-    location = request.args.get('location')
-    return f'<h1>Hi {name}, you are from {location}. You are on the query page</h1>'
-
-
-@app.route('/theform', methods=['GET', 'POST'])
-def theform():
-    if request.method == 'GET':
-        return render_template('form.html')
-    else:
-        name = request.form['name']
-        location = request.form['location']
-
-        db = get_db()
-        db.execute('insert into users (name, location) values (?,?)', [name, location])
+        db.execute('insert into log_date (entry_date) values (?)', [database_date])
         db.commit()
 
-        # return f'Hello {name}, you are from {location}'
-        return redirect(url_for('home', name=name, location=location))
-
-
-
-@app.route('/processjson', methods=['GET', 'POST'])
-def processjson():
-    response = requests.get("http://api.nbp.pl/api/exchangerates/rates/a/eur/")
-    data = response.json()
-    kurs = data["rates"]
-    lista = kurs[0]
-    eur = lista['mid']
-    kurs = float(eur)
-    return f'Kurs: {kurs}'
-
-
-@app.route('/viewresults')
-def viewresults():
-    db = get_db()
-    cur = db.execute('select id, name, location from users')
+    cur = db.execute('select entry_date from log_date order by entry_date desc')
     results = cur.fetchall()
-    return '<h1>The ID is {}. The name is {}. The location is {}.'.format(results[2]['id'], results[2]['name'], \
-                                                                          results[2]['location'])
 
+    pretty_results = []
+
+    for i in results:
+        single_date = {}
+
+        d = datetime.strptime(str(i['entry_date']), '%Y%m%d')
+        single_date['entry_date'] = datetime.strftime(d, '%B %d, %Y')
+
+        pretty_results.append(single_date)
+
+    return render_template('home.html', results=pretty_results)
+
+@app.route('/view/<date>', methods=['GET', 'POST']) #date is going to be 20170520
+def view(date):
+    if request.method == 'POST':
+        return '<h1>The food item added is #{}'.format(request.form['food-select'])
+
+    db = get_db()
+
+    cur = db.execute('select entry_date from log_date where entry_date = ?', [date])
+    result = cur.fetchone()
+
+    d = datetime.strptime(str(result['entry_date']), '%Y%m%d')
+    pretty_date = datetime.strftime(d, '%B %d, %Y')
+
+    food_cur = db.execute('select id, name from food')
+    food_results = food_cur.fetchall()
+
+    return render_template('day.html', date=pretty_date, food_results=food_results)
+
+@app.route('/food', methods=['GET', 'POST'])
+def food():
+    db = get_db()
+
+    if request.method == 'POST':
+        name = request.form['food-name']
+        protein = int(request.form['protein'])
+        carbohydrates = int(request.form['carbohydrates'])
+        fat = int(request.form['fat'])
+
+        calories = protein * 4 + carbohydrates * 4 + fat * 9
+
+        
+        db.execute('insert into food (name, protein, carbohydrates, fat, calories) values (?, ?, ?, ?, ?)', \
+            [name, protein, carbohydrates, fat, calories])
+        db.commit()
+
+    cur = db.execute('select name, protein, carbohydrates, fat, calories from food')
+    results = cur.fetchall()
+
+    return render_template('add_food.html', results=results)
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
