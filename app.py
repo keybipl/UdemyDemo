@@ -56,8 +56,7 @@ def view(date):
     date_result = cur.fetchone()
 
     if request.method == 'POST':
-        db.execute('insert into food_date (food_id, log_date_id) values (?, ?)', [request.form['food-select'], \
-                                                                                  date_result['id']])
+        db.execute('insert into food_date (food_id, log_date_id) values (?, ?)', [request.form['food-select'], date_result['id']])
         db.commit()
 
     d = datetime.strptime(str(date_result['entry_date']), '%Y%m%d')
@@ -66,7 +65,13 @@ def view(date):
     food_cur = db.execute('select id, name from food')
     food_results = food_cur.fetchall()
 
-    return render_template('day.html', date=pretty_date, food_results=food_results)
+    log_cur = db.execute(
+        'select food.name, food.protein, food.carbohydrates, food.fat, food.calories from log_date join food_date \
+        on food_date.log_date_id = log_date.id join food on food.id = food_date.food_id where log_date.entry_date = ?',
+        [date])
+    log_results = log_cur.fetchall()
+
+    return render_template('day.html', date=pretty_date, food_results=food_results, log_results=log_results)
 
 
 @app.route('/food', methods=['GET', 'POST'])
