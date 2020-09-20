@@ -5,7 +5,7 @@ from datetime import datetime
 app = Flask(__name__)
 
 def connect_db():
-    sql = sqlite3.connect('/mnt/c/Users/antho/Documents/food_log.db')
+    sql = sqlite3.connect('food_log.db')
     sql.row_factory = sqlite3.Row
     return sql
 
@@ -47,23 +47,27 @@ def index():
 
     return render_template('home.html', results=pretty_results)
 
-@app.route('/view/<date>', methods=['GET', 'POST']) #date is going to be 20170520
-def view(date):
-    if request.method == 'POST':
-        return '<h1>The food item added is #{}'.format(request.form['food-select'])
 
+@app.route('/view/<date>', methods=['GET','POST'])
+def view(date):
     db = get_db()
 
-    cur = db.execute('select entry_date from log_date where entry_date = ?', [date])
-    result = cur.fetchone()
+    cur = db.execute('select id, entry_date from log_date where entry_date = ?', [date])
+    date_result = cur.fetchone()
 
-    d = datetime.strptime(str(result['entry_date']), '%Y%m%d')
+    if request.method == 'POST':
+        db.execute('insert into food_date (food_id, log_date_id) values (?, ?)', [request.form['food-select'], \
+                                                                                  date_result['id']])
+        db.commit()
+
+    d = datetime.strptime(str(date_result['entry_date']), '%Y%m%d')
     pretty_date = datetime.strftime(d, '%B %d, %Y')
 
     food_cur = db.execute('select id, name from food')
     food_results = food_cur.fetchall()
 
     return render_template('day.html', date=pretty_date, food_results=food_results)
+
 
 @app.route('/food', methods=['GET', 'POST'])
 def food():

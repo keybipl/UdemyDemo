@@ -44,9 +44,9 @@
               <form method="POST" action="{{ url_for('view', date='20170520') }}">
                 <div class="form-group">
                   <select class="form-control" name="food-select">
-                    {% for food in food_results %}
-                      <option value={{ food.id }}>{{ food.name }}</option>
-                    {% endfor %}
+                      {% for food in food_results %}
+                    <option value={{ food.id }}>{{ food.name }}</option>
+                      {% endfor %}
                   </select>
                 </div>
 
